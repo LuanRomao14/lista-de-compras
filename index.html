@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4F46E5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lista de Compras">
+<meta name="color-scheme" content="light dark">
+<title>Lista de Compras Pro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root {
+    --primary: #4F46E5;
+    --primary-dark: #3730A3;
+    --accent-text: #4F46E5;
+    --gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
+    --success: #10B981;
+    --warn: #F59E0B;
+    --danger: #EF4444;
+    --danger-light: #FEE2E2;
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --text: #0F172A;
+    --text-light: #64748B;
+    --border: #E2E8F0;
+    --chip: #F1F5F9;
+    --input-bg: #F8FAFC;
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary-dark: #A5B4FC;
+        --accent-text: #A5B4FC;
+        --danger-light: #3B1A1F;
+        --bg: #0B1020;
+        --surface: #151B2E;
+        --text: #E8ECF5;
+        --text-light: #94A3B8;
+        --border: #263049;
+        --chip: #1E2742;
+        --input-bg: #0F1526;
+    }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+html { overscroll-behavior-y: none; }
+body {
+    background: var(--bg); color: var(--text);
+    padding-bottom: calc(120px + var(--sab));
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+button { touch-action: manipulation; }
+button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- Dashboard ---------- */
+.dashboard-wrapper { padding: calc(12px + var(--sat)) 16px 8px; background: var(--bg); position: sticky; top: 0; z-index: 10; }
+.dashboard {
+    background: var(--gradient); color: #fff; padding: 18px 20px; border-radius: 24px;
+    box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);
+}
+.top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.top-row h1 { font-size: 1.1rem; font-weight: 700; }
+.icon-btn {
+    background: rgba(255,255,255,0.2); border: none; color: #fff; width: 40px; height: 40px;
+    border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.icon-btn:active { background: rgba(255,255,255,0.35); }
+.icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+.collapsible { overflow: hidden; max-height: 140px; transition: max-height .25s ease, opacity .2s ease; }
+.dashboard.compact .collapsible { max-height: 0; opacity: 0; }
+
+.balance-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.budget-group { display: flex; flex-direction: column; gap: 4px; }
+.budget-label { font-size: 0.75rem; color: rgba(255,255,255,0.85); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.budget-input-wrapper { display: flex; align-items: center; background: rgba(255,255,255,0.2); border-radius: 12px; padding: 2px 12px; }
+.budget-input-wrapper span { font-weight: bold; }
+.budget-input-wrapper input {
+    background: transparent; border: none; color: #fff; padding: 8px 4px; width: 110px; font-size: 1.1rem; font-weight: bold; outline: none;
+}
+.budget-input-wrapper input::placeholder { color: rgba(255,255,255,0.55); }
+.count-box { text-align: right; }
+.count-box strong { display: block; font-size: 1.5rem; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: rgba(255,255,255,0.12); padding: 12px 14px; border-radius: 16px; }
+.stat-card { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat-card span { font-size: 0.78rem; color: rgba(255,255,255,0.85); }
+.stat-card strong { font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.saldo-positivo { color: #A7F3D0 !important; }
+.saldo-negativo { color: #FECACA !important; }
+
+.progress { height: 8px; background: rgba(255,255,255,0.25); border-radius: 99px; margin-top: 12px; overflow: hidden; }
+.progress .bar { height: 100%; width: 0; border-radius: 99px; background: #A7F3D0; transition: width .35s ease, background .3s; }
+.progress .bar.warn { background: #FDE68A; }
+.progress .bar.over { background: #FCA5A5; }
+.progress-label { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 0.75rem; color: rgba(255,255,255,0.9); }
+
+/* ---------- Abas de filtro ---------- */
+.tabs { display: flex; gap: 6px; margin: 8px 16px 14px; background: var(--chip); padding: 4px; border-radius: 14px; }
+.tab {
+    flex: 1; border: none; background: transparent; color: var(--text-light); font-size: 0.85rem; font-weight: 600;
+    padding: 10px 4px; border-radius: 10px; cursor: pointer; min-height: 40px;
+}
+.tab.active { background: var(--surface); color: var(--accent-text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.tab small { font-weight: 500; opacity: .75; }
+
+/* ---------- Lista ---------- */
+.item-list { padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.item-card {
+    background: var(--surface); padding: 10px 12px 10px 4px; border-radius: 20px; border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 4px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+}
+.item-card.new { animation: slideIn .3s ease-out; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+.check { flex: none; width: 46px; height: 46px; background: none; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.check .box {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; color: transparent; transition: all .2s;
+}
+.check .box svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.item-card.bought .check .box { background: var(--success); border-color: var(--success); color: #fff; }
+.item-card.bought .item-info h3 { text-decoration: line-through; color: var(--text-light); }
+.item-card.bought .item-total strong { color: var(--text-light); }
+
+.item-info { flex: 1; min-width: 0; cursor: pointer; padding: 4px 0; }
+.item-info h3 { font-size: 1.02rem; margin-bottom: 5px; color: var(--text); overflow-wrap: anywhere; }
+.item-info p { font-size: 0.82rem; color: var(--text-light); background: var(--chip); display: inline-block; padding: 3px 8px; border-radius: 8px; font-weight: 500; }
+.item-total { text-align: right; padding: 0 6px; }
+.item-total strong { display: block; font-size: 1.05rem; color: var(--primary-dark); white-space: nowrap; }
+
+.delete-btn {
+    flex: none; background: var(--danger-light); color: var(--danger); border: none; width: 40px; height: 40px;
+    border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.delete-btn:active { background: var(--danger); color: #fff; }
+.delete-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.empty { text-align: center; padding: 48px 24px; color: var(--text-light); }
+.empty .big { font-size: 3rem; margin-bottom: 8px; }
+.empty h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 6px; }
+.empty p { font-size: 0.9rem; line-height: 1.4; }
+
+/* ---------- Botão flutuante ---------- */
+.fab-container { position: fixed; bottom: calc(20px + var(--sab)); left: 0; width: 100%; display: flex; justify-content: center; z-index: 90; pointer-events: none; }
+.fab {
+    pointer-events: auto; background: var(--gradient); color: #fff; border: none; border-radius: 99px;
+    padding: 16px 32px; font-size: 1.05rem; font-weight: 600; box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.5);
+    display: flex; align-items: center; gap: 10px; cursor: pointer; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fab:active { transform: scale(0.95); }
+.fab svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Folhas (modais) ---------- */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    display: flex; align-items: flex-end; justify-content: center;
+    z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-content {
+    background: var(--surface); color: var(--text); width: 100%; max-width: 500px; max-height: 92%; overflow-y: auto;
+    border-radius: 32px 32px 0 0; padding: 26px 22px calc(24px + var(--sab));
+    transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -10px 25px rgba(0,0,0,0.15);
+}
+.modal-overlay.active .modal-content { transform: translateY(0); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-header h2 { font-size: 1.25rem; }
+.close-modal-icon { background: var(--chip); border: none; width: 36px; height: 36px; border-radius: 18px; color: var(--text-light); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+.input-group { margin-bottom: 14px; }
+.input-group label { display: block; font-size: 0.85rem; color: var(--text-light); font-weight: 500; margin-bottom: 8px; }
+.input-group label small { font-weight: 400; opacity: .8; }
+.input-group input, .input-group select {
+    width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 16px; font-size: 16px; color: var(--text);
+    background: var(--input-bg); outline: none; transition: border-color 0.2s; min-height: 52px;
+}
+.input-group input:focus, .input-group select:focus { border-color: var(--primary); }
+.row { display: flex; gap: 12px; }
+
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper input { text-align: center; padding-left: 4px; padding-right: 4px; min-width: 0; }
+.stepper button {
+    flex: none; width: 48px; height: 52px; border: none; border-radius: 14px; background: var(--chip); color: var(--text);
+    font-size: 1.4rem; font-weight: 600; cursor: pointer;
+}
+.stepper button:active { background: var(--border); }
+
+.cat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.cat-chip {
+    padding: 9px 12px; border-radius: 99px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text);
+    font-size: 0.85rem; font-weight: 500; cursor: pointer;
+}
+.cat-chip.selected { border-color: var(--primary); background: rgba(79,70,229,0.12); color: var(--accent-text); font-weight: 600; }
+
+.subtotal { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; color: var(--text-light); font-size: 0.95rem; }
+.subtotal strong { color: var(--text); font-size: 1.15rem; }
+.form-error { color: var(--danger); font-size: 0.88rem; font-weight: 500; margin-bottom: 10px; }
+
+.btn-save {
+    width: 100%; padding: 17px; background: var(--gradient); color: #fff; border: none; border-radius: 16px;
+    font-weight: bold; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3); transition: transform 0.1s;
+}
+.btn-save:active { transform: scale(0.98); }
+.btn-secondary {
+    width: 100%; padding: 15px; background: var(--chip); color: var(--text); border: none; border-radius: 16px;
+    font-weight: 600; font-size: 1rem; cursor: pointer; margin-top: 10px;
+}
+.btn-danger { background: var(--danger); color: #fff; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); }
+
+.menu-item {
+    width: 100%; text-align: left; padding: 16px 12px; background: none; border: none; border-bottom: 1px solid var(--border);
+    color: var(--text); font-size: 1.02rem; cursor: pointer; display: flex; align-items: center; gap: 14px;
+}
+.menu-item:last-child { border-bottom: none; }
+.menu-item:active { background: var(--chip); }
+.menu-item.danger { color: var(--danger); }
+.confirm-text { color: var(--text-light); line-height: 1.45; margin-bottom: 18px; }
+
+/* ---------- Aviso (toast) ---------- */
+.toast {
+    position: fixed; left: 50%; bottom: calc(96px + var(--sab)); transform: translate(-50%, 20px);
+    background: #1E293B; color: #fff; padding: 12px 16px; border-radius: 14px; font-size: 0.92rem;
+    display: flex; align-items: center; gap: 14px; z-index: 200; opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s; max-width: calc(100% - 32px); box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast button { background: none; border: none; color: #A5B4FC; font-weight: 700; font-size: 0.92rem; cursor: pointer; padding: 6px 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <header class="dashboard" id="dashboard">
+        <div class="top-row">
+            <h1>🛒 Lista de Compras</h1>
+            <button class="icon-btn" id="btn-menu" aria-label="Mais opções">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+        </div>
+        <div class="collapsible">
+            <div class="balance-header">
+                <div class="budget-group">
+                    <label class="budget-label" for="budget-input">Orçamento Mensal</label>
+                    <div class="budget-input-wrapper">
+                        <span>R$</span>
+                        <input type="text" id="budget-input" placeholder="0,00" inputmode="decimal" autocomplete="off">
+                    </div>
+                </div>
+                <div class="count-box">
+                    <span class="budget-label">Comprados</span>
+                    <strong id="item-count">0/0</strong>
+                </div>
+            </div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span>Total da lista</span>
+                <strong id="total-spent">R$ 0,00</strong>
+            </div>
+            <div class="stat-card">
+                <span>Saldo disponível</span>
+                <strong id="current-balance">—</strong>
+            </div>
+        </div>
+        <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+        <div class="collapsible">
+            <div class="progress-label">
+                <span id="pct-label">Defina o orçamento acima</span>
+                <span id="bought-label">Comprado: R$ 0,00</span>
+            </div>
+        </div>
+    </header>
+</div>
+
+<nav class="tabs" aria-label="Filtrar itens">
+    <button class="tab" data-filter="all">Todos <small id="cnt-all">0</small></button>
+    <button class="tab" data-filter="pending">Pendentes <small id="cnt-pending">0</small></button>
+    <button class="tab" data-filter="bought">Comprados <small id="cnt-bought">0</small></button>
+</nav>
+
+<main class="item-list" id="list-container" aria-live="polite"></main>
+
+<div class="fab-container">
+    <button class="fab" id="btn-open-modal">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+        Adicionar Produto
+    </button>
+</div>
+
+<!-- Folha: adicionar / editar produto -->
+<div class="modal-overlay" id="sheet-item" role="dialog" aria-modal="true" aria-labelledby="item-sheet-title">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="item-sheet-title">Novo produto</h2>
+            <button class="close-modal-icon" data-close aria-label="Fechar">✕</button>
+        </div>
+        <div class="input-group">
+            <label for="item-name">Nome do produto</label>
+            <input type="text" id="item-name" placeholder="Ex: Detergente Ypê" autocomplete="off" maxlength="80" enterkeyhint="next">
+        </div>
+        <div class="input-group">
+            <label for="item-price">Preço unitário (R$) <small>— opcional</small></label>
+            <input type="text" id="item-price" placeholder="0,00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+        </div>
+        <div class="row">
+            <div class="input-group" style="flex: 1.5;">
+                <label for="item-qty">Quantidade</label>
+                <div class="stepper">
+                    <button type="button" id="qty-minus" aria-label="Diminuir quantidade">−</button>
+                    <input type="text" id="item-qty" value="1" inputmode="decimal" autocomplete="off">
+                    <button type="button" id="qty-plus" aria-label="Aumentar quantidade">+</button>
+                </div>
+            </div>
+            <div class="input-group" style="flex: 1;">
+                <label for="item-unit">Unidade</label>
+                <select id="item-unit">
+                    <option value="un">un</option>
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="L">L</option>
+                    <option value="pct">pct</option>
+                    <option value="cx">cx</option>
+                </select>
+            </div>
+        </div>
+        <div class="input-group">
+            <label>Categoria</label>
+            <div class="cat-grid" id="cat-grid"></div>
+        </div>
+        <div class="subtotal"><span>Subtotal</span><strong id="item-subtotal">R$ 0,00</strong></div>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+        <button class="btn-save" id="btn-save-item">Adicionar à lista</button>
+    </div>
+</div>
+
+<!-- Folha: menu de opções -->
+<div class="modal-overlay" id="sheet-menu" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="menu-title">Opções</h2>
+            <button class="close-modal-icon" data-close aria-label="Fechar">✕</button>
+        </div>
+        <button class="menu-item" id="m-share"><span>📤</span> Compartilhar lista</button>
+        <button class="menu-item" id="m-copy"><span>📋</span> Copiar lista</button>
+        <button class="menu-item" id="m-uncheck"><span>↩️</span> Desmarcar todos</button>
+        <button class="menu-item" id="m-clear-bought"><span>🧹</span> Remover comprados</button>
+        <button class="menu-item danger" id="m-clear-all"><span>🗑️</span> Limpar toda a lista</button>
+    </div>
+</div>
+
+<!-- Folha: confirmação -->
+<div class="modal-overlay" id="sheet-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="confirm-title">Confirmar</h2>
+            <button class="close-modal-icon" data-close aria-label="Fechar">✕</button>
+        </div>
+        <p class="confirm-text" id="confirm-text"></p>
+        <button class="btn-save btn-danger" id="confirm-ok">Confirmar</button>
+        <button class="btn-secondary" data-close>Cancelar</button>
+    </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-action" hidden></button></div>
+
+<script>
+(function () {
+    'use strict';
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    // ---------- Armazenamento (mesmas chaves da versão anterior: a lista antiga continua aparecendo) ----------
+    var KEYS = { items: 'myAppItems', budget: 'myAppBudget', filter: 'myAppFilter' };
+    var store = {
+        get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+        set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    };
+
+    // ---------- Constantes ----------
+    var CATS = {
+        hortifruti:  { n: 'Hortifruti',  e: '🥬' },
+        padaria:     { n: 'Padaria',     e: '🍞' },
+        acougue:     { n: 'Açougue',     e: '🥩' },
+        laticinios:  { n: 'Laticínios',  e: '🧀' },
+        mercearia:   { n: 'Mercearia',   e: '🛒' },
+        bebidas:     { n: 'Bebidas',     e: '🥤' },
+        limpeza:     { n: 'Limpeza',     e: '🧽' },
+        higiene:     { n: 'Higiene',     e: '🧴' },
+        outros:      { n: 'Outros',      e: '📦' }
+    };
+    var STEP = { un: 1, pct: 1, cx: 1, kg: 0.5, L: 0.5, g: 100 };
+    var CHECK_SVG = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    var TRASH_SVG = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+
+    var moneyFmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    var numFmt = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
+    var money = function (v) { return moneyFmt.format(v || 0); };
+
+    // ---------- Utilitários ----------
+    function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function parseNum(v) {
+        if (v == null) return NaN;
+        var s = String(v).trim().replace(/[R$\s]/g, '');
+        if (!s) return NaN;
+        if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+        var n = Number(s);
+        return isFinite(n) ? n : NaN;
+    }
+    function round2(n) { return Math.round(n * 100) / 100; }
+    function toInput(n) { return String(n).replace('.', ','); }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+    // ---------- Estado ----------
+    function loadItems() {
+        try {
+            var raw = JSON.parse(store.get(KEYS.items) || '[]');
+            if (!Array.isArray(raw)) return [];
+            return raw.map(function (i) {
+                return {
+                    id: String(i.id != null ? i.id : uid()),
+                    name: String(i.name || '').slice(0, 80),
+                    price: Number(i.price) || 0,
+                    qty: Number(i.qty) > 0 ? Number(i.qty) : 1,
+                    unit: i.unit || 'un',
+                    cat: CATS[i.cat] ? i.cat : 'outros',
+                    bought: !!i.bought
+                };
+            }).filter(function (i) { return i.name; });
+        } catch (e) { return []; }
+    }
+
+    var items = loadItems();
+    var budget = Number(store.get(KEYS.budget)) || 0;
+    var filter = store.get(KEYS.filter);
+    if (['all', 'pending', 'bought'].indexOf(filter) === -1) filter = 'all';
+    var editingId = null, selectedCat = 'outros', lastAddedId = null, lastRemoved = null, confirmCb = null;
+
+    function save() {
+        store.set(KEYS.items, JSON.stringify(items));
+        store.set(KEYS.budget, String(budget));
+    }
+
+    // ---------- Totais e resumo ----------
+    function totals() {
+        var total = 0, bought = 0, boughtCount = 0;
+        items.forEach(function (i) {
+            var sub = i.price * i.qty;
+            total += sub;
+            if (i.bought) { bought += sub; boughtCount++; }
+        });
+        return { total: round2(total), bought: round2(bought), boughtCount: boughtCount };
+    }
+
+    function renderSummary() {
+        var t = totals();
+        $('item-count').textContent = t.boughtCount + '/' + items.length;
+        $('total-spent').textContent = money(t.total);
+        $('bought-label').textContent = 'Comprado: ' + money(t.bought);
+
+        var balEl = $('current-balance'), bar = $('bar'), pctEl = $('pct-label');
+        balEl.classList.remove('saldo-positivo', 'saldo-negativo');
+        bar.className = 'bar';
+
+        if (budget > 0) {
+            var balance = round2(budget - t.total);
+            var pct = t.total / budget * 100;
+            balEl.textContent = money(balance);
+            balEl.classList.add(balance < 0 ? 'saldo-negativo' : 'saldo-positivo');
+            bar.style.width = Math.min(100, pct) + '%';
+            if (pct > 100) bar.classList.add('over'); else if (pct >= 80) bar.classList.add('warn');
+            pctEl.textContent = balance < 0
+                ? 'Estourou em ' + money(-balance)
+                : Math.round(pct) + '% do orçamento';
+        } else {
+            balEl.textContent = '—';
+            bar.style.width = '0%';
+            pctEl.textContent = 'Defina o orçamento acima';
+        }
+    }
+
+    // ---------- Lista ----------
+    function cardHtml(i) {
+        var c = CATS[i.cat] || CATS.outros;
+        var qtyTxt = numFmt.format(i.qty) + ' ' + esc(i.unit);
+        var detail = i.price > 0 ? qtyTxt + ' × ' + money(i.price) : qtyTxt + ' · sem preço';
+        var cls = 'item-card' + (i.bought ? ' bought' : '') + (i.id === lastAddedId ? ' new' : '');
+        return '<div class="' + cls + '" data-id="' + esc(i.id) + '">' +
+            '<button class="check" data-action="toggle" aria-pressed="' + i.bought + '" aria-label="' +
+                (i.bought ? 'Desmarcar' : 'Marcar como comprado') + ': ' + esc(i.name) + '"><span class="box">' + CHECK_SVG + '</span></button>' +
+            '<div class="item-info" data-action="edit" role="button" tabindex="0" aria-label="Editar ' + esc(i.name) + '">' +
+                '<h3>' + esc(i.name) + '</h3><p>' + c.e + ' ' + detail + '</p></div>' +
+            '<div class="item-total"><strong>' + (i.price > 0 ? money(i.price * i.qty) : '—') + '</strong></div>' +
+            '<button class="delete-btn" data-action="delete" aria-label="Remover ' + esc(i.name) + '">' + TRASH_SVG + '</button>' +
+            '</div>';
+    }
+
+    function renderList() {
+        var pending = items.filter(function (i) { return !i.bought; }).length;
+        $('cnt-all').textContent = items.length;
+        $('cnt-pending').textContent = pending;
+        $('cnt-bought').textContent = items.length - pending;
+        Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+            b.classList.toggle('active', b.getAttribute('data-filter') === filter);
+        });
+
+        var list = items.filter(function (i) {
+            return filter === 'all' || (filter === 'pending' ? !i.bought : i.bought);
+        }).sort(function (a, b) { return Number(a.bought) - Number(b.bought); });
+
+        var container = $('list-container');
+        if (!list.length) {
+            container.innerHTML = items.length === 0
+                ? '<div class="empty"><div class="big">🛒</div><h2>Sua lista está vazia</h2><p>Toque em “Adicionar Produto” para começar.</p></div>'
+                : '<div class="empty"><div class="big">' + (filter === 'bought' ? '🧺' : '🎉') + '</div><h2>' +
+                  (filter === 'bought' ? 'Nada comprado ainda' : 'Tudo comprado!') + '</h2><p>' +
+                  (filter === 'bought' ? 'Marque os itens no círculo ao lado de cada produto.' : 'Não há itens pendentes na lista.') + '</p></div>';
+        } else {
+            container.innerHTML = list.map(cardHtml).join('');
+        }
+        renderSummary();
+    }
+
+    // ---------- Folhas (modais) com suporte ao botão Voltar do Android ----------
+    var openSheetId = null;
+
+    function openSheet(id) {
+        if (openSheetId) {
+            $(openSheetId).classList.remove('active');
+            openSheetId = id;
+            $(id).classList.add('active');
+            return;
+        }
+        openSheetId = id;
+        $(id).classList.add('active');
+        try { history.pushState({ sheet: id }, ''); } catch (e) {}
+    }
+    function closeSheet() {
+        if (!openSheetId) return;
+        $(openSheetId).classList.remove('active');
+        openSheetId = null;
+        try { if (history.state && history.state.sheet) history.back(); } catch (e) {}
+    }
+    window.addEventListener('popstate', function () {
+        if (openSheetId) {
+            $(openSheetId).classList.remove('active');
+            openSheetId = null;
+        }
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+    Array.prototype.forEach.call(document.querySelectorAll('.modal-overlay'), function (ov) {
+        ov.addEventListener('click', function (e) {
+            if (e.target === ov || e.target.hasAttribute('data-close')) closeSheet();
+        });
+    });
+
+    // ---------- Aviso (toast) ----------
+    var toastTimer = null, toastFn = null;
+    function toast(msg, actionLabel, fn) {
+        $('toast-msg').textContent = msg;
+        var btn = $('toast-action');
+        toastFn = fn || null;
+        if (actionLabel) { btn.textContent = actionLabel; btn.hidden = false; } else { btn.hidden = true; }
+        $('toast').classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(hideToast, actionLabel ? 5000 : 2500);
+    }
+    function hideToast() { $('toast').classList.remove('show'); clearTimeout(toastTimer); }
+    $('toast-action').addEventListener('click', function () {
+        var fn = toastFn; hideToast();
+        if (fn) fn();
+    });
+
+    // ---------- Formulário de produto ----------
+    function renderCats() {
+        $('cat-grid').innerHTML = Object.keys(CATS).map(function (k) {
+            return '<button type="button" class="cat-chip' + (k === selectedCat ? ' selected' : '') + '" data-cat="' + k + '">' +
+                CATS[k].e + ' ' + CATS[k].n + '</button>';
+        }).join('');
+    }
+    $('cat-grid').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-cat]');
+        if (!b) return;
+        selectedCat = b.getAttribute('data-cat');
+        renderCats();
+    });
+
+    function updateSubtotal() {
+        var p = parseNum($('item-price').value), q = parseNum($('item-qty').value);
+        $('item-subtotal').textContent = money((isNaN(p) ? 0 : p) * (isNaN(q) ? 0 : q));
+    }
+    function formError(msg, fieldId) {
+        var el = $('form-error');
+        el.textContent = msg; el.hidden = false;
+        if (fieldId) $(fieldId).focus();
+    }
+    function clearError() { $('form-error').hidden = true; }
+
+    function stepQty(dir) {
+        var q = parseNum($('item-qty').value);
+        if (isNaN(q)) q = 0;
+        var step = STEP[$('item-unit').value] || 1;
+        var next = Math.round((q + dir * step) * 1000) / 1000;
+        if (next <= 0) next = step;
+        $('item-qty').value = toInput(next);
+        updateSubtotal();
+    }
+    $('qty-minus').addEventListener('click', function () { stepQty(-1); });
+    $('qty-plus').addEventListener('click', function () { stepQty(1); });
+    ['item-price', 'item-qty'].forEach(function (id) { $(id).addEventListener('input', function () { clearError(); updateSubtotal(); }); });
+    $('item-name').addEventListener('input', clearError);
+    $('item-name').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('item-price').focus(); } });
+    $('item-price').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveItem(); } });
+
+    function openItemSheet(id) {
+        editingId = id || null;
+        var it = id ? items.filter(function (x) { return x.id === id; })[0] : null;
+        $('item-sheet-title').textContent = it ? 'Editar produto' : 'Novo produto';
+        $('btn-save-item').textContent = it ? 'Salvar alterações' : 'Adicionar à lista';
+        $('item-name').value = it ? it.name : '';
+        $('item-price').value = it && it.price ? toInput(it.price) : '';
+        $('item-qty').value = it ? toInput(it.qty) : '1';
+        $('item-unit').value = it ? it.unit : 'un';
+        selectedCat = it ? it.cat : 'outros';
+        renderCats(); clearError(); updateSubtotal();
+        openSheet('sheet-item');
+        if (!it) setTimeout(function () { $('item-name').focus(); }, 350);
+    }
+
+    function saveItem() {
+        var name = $('item-name').value.trim();
+        var priceRaw = $('item-price').value.trim();
+        var price = priceRaw === '' ? 0 : parseNum(priceRaw);
+        var qty = parseNum($('item-qty').value);
+
+        if (!name) return formError('Digite o nome do produto.', 'item-name');
+        if (isNaN(price) || price < 0) return formError('Preço inválido. Use apenas números, ex.: 12,90', 'item-price');
+        if (isNaN(qty) || qty <= 0) return formError('Informe uma quantidade maior que zero.', 'item-qty');
+
+        var data = {
+            name: name.slice(0, 80),
+            price: round2(price),
+            qty: Math.round(qty * 1000) / 1000,
+            unit: $('item-unit').value,
+            cat: selectedCat
+        };
+        var isNew = !editingId;
+        if (isNew) {
+            var it = { id: uid(), bought: false };
+            for (var k in data) it[k] = data[k];
+            items.push(it);
+            lastAddedId = it.id;
+            if (filter === 'bought') { filter = 'all'; store.set(KEYS.filter, filter); }
+        } else {
+            var cur = items.filter(function (x) { return x.id === editingId; })[0];
+            if (cur) for (var k2 in data) cur[k2] = data[k2];
+            lastAddedId = null;
+        }
+        save(); closeSheet(); renderList();
+        if (isNew) {
+            var el = document.querySelector('[data-id="' + lastAddedId + '"]');
+            if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            toast('Item adicionado');
+        } else {
+            toast('Item atualizado');
+        }
+    }
+    $('btn-save-item').addEventListener('click', saveItem);
+    $('btn-open-modal').addEventListener('click', function () { openItemSheet(null); });
+
+    // ---------- Ações na lista (delegação de eventos) ----------
+    $('list-container').addEventListener('click', function (e) {
+        var act = e.target.closest('[data-action]');
+        if (!act) return;
+        var card = act.closest('.item-card');
+        if (!card) return;
+        var id = card.getAttribute('data-id'), a = act.getAttribute('data-action');
+        if (a === 'toggle') toggleItem(id);
+        else if (a === 'edit') openItemSheet(id);
+        else if (a === 'delete') removeItem(id);
+    });
+    $('list-container').addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var act = e.target.closest('[data-action="edit"]');
+        if (!act) return;
+        e.preventDefault();
+        openItemSheet(act.closest('.item-card').getAttribute('data-id'));
+    });
+
+    function toggleItem(id) {
+        items.forEach(function (i) { if (i.id === id) i.bought = !i.bought; });
+        lastAddedId = null; vibrate(10); save(); renderList();
+    }
+    function removeItem(id) {
+        var idx = -1;
+        items.forEach(function (i, n) { if (i.id === id) idx = n; });
+        if (idx < 0) return;
+        lastRemoved = { item: items[idx], idx: idx };
+        items.splice(idx, 1);
+        lastAddedId = null; vibrate(15); save(); renderList();
+        toast('Item removido', 'Desfazer', undoRemove);
+    }
+    function undoRemove() {
+        if (!lastRemoved) return;
+        items.splice(Math.min(lastRemoved.idx, items.length), 0, lastRemoved.item);
+        lastRemoved = null; save(); renderList();
+    }
+
+    // ---------- Filtros ----------
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+        b.addEventListener('click', function () {
+            filter = b.getAttribute('data-filter');
+            store.set(KEYS.filter, filter);
+            lastAddedId = null;
+            renderList();
+        });
+    });
+
+    // ---------- Orçamento ----------
+    var budgetInput = $('budget-input');
+    budgetInput.value = budget > 0 ? toInput(budget) : '';
+    budgetInput.addEventListener('input', function () {
+        var n = parseNum(budgetInput.value);
+        budget = (isNaN(n) || n < 0) ? 0 : round2(n);
+        save(); renderSummary();
+    });
+    budgetInput.addEventListener('blur', function () { budgetInput.value = budget > 0 ? toInput(budget.toFixed(2)) : ''; });
+    budgetInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') budgetInput.blur(); });
+
+    // ---------- Menu de opções ----------
+    function listText() {
+        if (!items.length) return '';
+        var t = totals();
+        var lines = ['🛒 *Lista de Compras*', ''];
+        items.forEach(function (i) {
+            var line = (i.bought ? '✅ ' : '⬜ ') + i.name + ' — ' + numFmt.format(i.qty) + ' ' + i.unit;
+            if (i.price > 0) line += ' × ' + money(i.price) + ' = ' + money(i.price * i.qty);
+            lines.push(line);
+        });
+        lines.push('', '*Total:* ' + money(t.total));
+        if (budget > 0) {
+            lines.push('*Orçamento:* ' + money(budget));
+            lines.push('*Saldo:* ' + money(budget - t.total));
+        }
+        return lines.join('\n');
+    }
+
+    function askConfirm(title, msg, okLabel, cb) {
+        $('confirm-title').textContent = title;
+        $('confirm-text').textContent = msg;
+        $('confirm-ok').textContent = okLabel;
+        confirmCb = cb;
+        openSheet('sheet-confirm');
+    }
+    $('confirm-ok').addEventListener('click', function () {
+        var cb = confirmCb; confirmCb = null;
+        closeSheet();
+        if (cb) cb();
+    });
+
+    $('btn-menu').addEventListener('click', function () { openSheet('sheet-menu'); });
+
+    $('m-share').addEventListener('click', function () {
+        var text = listText();
+        closeSheet();
+        if (!text) { toast('A lista está vazia'); return; }
+        var fallback = function () { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); };
+        if (navigator.share) {
+            navigator.share({ title: 'Lista de Compras', text: text }).catch(function (err) {
+                if (!err || err.name !== 'AbortError') fallback();
+            });
+        } else { fallback(); }
+    });
+
+    $('m-copy').addEventListener('click', function () {
+        var text = listText();
+        closeSheet();
+        if (!text) { toast('A lista está vazia'); return; }
+        var legacy = function () {
+            var ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            toast(ok ? 'Lista copiada' : 'Não foi possível copiar');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () { toast('Lista copiada'); }, legacy);
+        } else { legacy(); }
+    });
+
+    $('m-uncheck').addEventListener('click', function () {
+        closeSheet();
+        if (!items.some(function (i) { return i.bought; })) { toast('Nenhum item marcado'); return; }
+        items.forEach(function (i) { i.bought = false; });
+        save(); renderList(); toast('Todos os itens desmarcados');
+    });
+
+    $('m-clear-bought').addEventListener('click', function () {
+        var n = items.filter(function (i) { return i.bought; }).length;
+        if (!n) { closeSheet(); toast('Nenhum item comprado'); return; }
+        askConfirm('Remover comprados', 'Remover ' + n + (n === 1 ? ' item comprado' : ' itens comprados') + ' da lista?', 'Remover', function () {
+            items = items.filter(function (i) { return !i.bought; });
+            save(); renderList(); toast('Itens comprados removidos');
+        });
+    });
+
+    $('m-clear-all').addEventListener('click', function () {
+        if (!items.length) { closeSheet(); toast('A lista já está vazia'); return; }
+        askConfirm('Limpar lista', 'Todos os ' + items.length + ' itens serão removidos. O orçamento mensal continua salvo.', 'Limpar tudo', function () {
+            items = []; lastAddedId = null;
+            save(); renderList(); toast('Lista limpa');
+        });
+    });
+
+    // ---------- Cabeçalho compacto ao rolar ----------
+    var dash = $('dashboard'), ticking = false;
+    window.addEventListener('scroll', function () {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function () {
+            var y = window.pageYOffset || document.documentElement.scrollTop;
+            if (y > 90) dash.classList.add('compact');
+            else if (y < 10) dash.classList.remove('compact');
+            ticking = false;
+        });
+    }, { passive: true });
+
+    // ---------- Início ----------
+    renderList();
+
+    // Service worker: só em sites hospedados (não no APK/Capacitor nem em arquivo local)
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) &&
+        location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('sw.js').catch(function () {});
+        });
+    }
+})();
+</script>
+</body>
+</html>

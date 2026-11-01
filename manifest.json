@@ -1,4 +1,5 @@
 {
+  "id": "./index.html",
   "name": "Lista de Compras Pro",
   "short_name": "Compras",
   "description": "Lista de compras com orçamento mensal e saldo em tempo real.",
@@ -6,7 +7,8 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
+  "categories": ["shopping", "finance", "productivity"],
   "background_color": "#4F46E5",
   "theme_color": "#4F46E5",
   "icons": [

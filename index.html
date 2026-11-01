@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#4F46E5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Lista de Compras">
 <meta name="color-scheme" content="light dark">
 <title>Lista de Compras Pro</title>
@@ -223,6 +224,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
 .menu-item:last-child { border-bottom: none; }
 .menu-item:active { background: var(--chip); }
 .menu-item.danger { color: var(--danger); }
+.menu-section { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-light); padding: 16px 12px 4px; }
+.menu-hint { font-size: 0.8rem; color: var(--text-light); padding: 0 12px 10px; line-height: 1.4; }
 .confirm-text { color: var(--text-light); line-height: 1.45; margin-bottom: 18px; }
 
 /* ---------- Aviso (toast) ---------- */
@@ -291,7 +294,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     <button class="tab" data-filter="bought">Comprados <small id="cnt-bought">0</small></button>
 </nav>
 
-<main class="item-list" id="list-container" aria-live="polite"></main>
+<main class="item-list" id="list-container"></main>
 
 <div class="fab-container">
     <button class="fab" id="btn-open-modal">
@@ -358,6 +361,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
         <button class="menu-item" id="m-uncheck"><span>↩️</span> Desmarcar todos</button>
         <button class="menu-item" id="m-clear-bought"><span>🧹</span> Remover comprados</button>
         <button class="menu-item danger" id="m-clear-all"><span>🗑️</span> Limpar toda a lista</button>
+
+        <div class="menu-section">Backup</div>
+        <button class="menu-item" id="m-export"><span>💾</span> Salvar backup (arquivo)</button>
+        <button class="menu-item" id="m-import"><span>📥</span> Restaurar backup</button>
+        <p class="menu-hint" id="backup-info">Seus dados ficam só neste aparelho. Faça um backup de vez em quando.</p>
     </div>
 </div>
 
@@ -374,6 +382,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     </div>
 </div>
 
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-action" hidden></button></div>
 
 <script>
@@ -383,11 +393,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     var $ = function (id) { return document.getElementById(id); };
 
     // ---------- Armazenamento (mesmas chaves da versão anterior: a lista antiga continua aparecendo) ----------
-    var KEYS = { items: 'myAppItems', budget: 'myAppBudget', filter: 'myAppFilter' };
+    var KEYS = { items: 'myAppItems', budget: 'myAppBudget', filter: 'myAppFilter', backup: 'myAppLastBackup' };
     var store = {
         get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-        set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+        set: function (k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
     };
+
+    // Pede ao navegador para não apagar os dados sozinho quando faltar espaço
+    try {
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    } catch (e) {}
 
     // ---------- Constantes ----------
     var CATS = {
@@ -415,36 +430,53 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
+
+    // Aceita "12,90", "1.250,50", "12.5", "R$ 12,90". Ponto sozinho só vira milhar
+    // quando está no padrão 1.250 / 1.250.000 (grupos de 3 dígitos); caso contrário é decimal.
     function parseNum(v) {
         if (v == null) return NaN;
         var s = String(v).trim().replace(/[R$\s]/g, '');
         if (!s) return NaN;
-        if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+        if (s.indexOf(',') !== -1) {
+            s = s.replace(/\./g, '').replace(',', '.');
+        } else if (s.indexOf('.') !== -1) {
+            if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+        }
         var n = Number(s);
         return isFinite(n) ? n : NaN;
     }
     function round2(n) { return Math.round(n * 100) / 100; }
     function toInput(n) { return String(n).replace('.', ','); }
-    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function uid() {
+        try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
     function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function fmtDate(ts) {
+        var d = new Date(ts);
+        return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+    }
 
     // ---------- Estado ----------
+    function sanitizeItems(raw) {
+        if (!Array.isArray(raw)) return [];
+        return raw.map(function (i) {
+            i = i || {};
+            return {
+                id: String(i.id != null ? i.id : uid()),
+                name: String(i.name || '').slice(0, 80),
+                price: Math.max(0, Number(i.price) || 0),
+                qty: Number(i.qty) > 0 ? Number(i.qty) : 1,
+                unit: ['un', 'kg', 'g', 'L', 'pct', 'cx'].indexOf(i.unit) !== -1 ? i.unit : 'un',
+                cat: CATS[i.cat] ? i.cat : 'outros',
+                bought: !!i.bought
+            };
+        }).filter(function (i) { return i.name; });
+    }
     function loadItems() {
-        try {
-            var raw = JSON.parse(store.get(KEYS.items) || '[]');
-            if (!Array.isArray(raw)) return [];
-            return raw.map(function (i) {
-                return {
-                    id: String(i.id != null ? i.id : uid()),
-                    name: String(i.name || '').slice(0, 80),
-                    price: Number(i.price) || 0,
-                    qty: Number(i.qty) > 0 ? Number(i.qty) : 1,
-                    unit: i.unit || 'un',
-                    cat: CATS[i.cat] ? i.cat : 'outros',
-                    bought: !!i.bought
-                };
-            }).filter(function (i) { return i.name; });
-        } catch (e) { return []; }
+        try { return sanitizeItems(JSON.parse(store.get(KEYS.items) || '[]')); }
+        catch (e) { return []; }
     }
 
     var items = loadItems();
@@ -452,10 +484,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     var filter = store.get(KEYS.filter);
     if (['all', 'pending', 'bought'].indexOf(filter) === -1) filter = 'all';
     var editingId = null, selectedCat = 'outros', lastAddedId = null, lastRemoved = null, confirmCb = null;
+    var saveWarned = false;
 
     function save() {
-        store.set(KEYS.items, JSON.stringify(items));
-        store.set(KEYS.budget, String(budget));
+        var ok1 = store.set(KEYS.items, JSON.stringify(items));
+        var ok2 = store.set(KEYS.budget, String(budget));
+        if (!(ok1 && ok2) && !saveWarned) {
+            saveWarned = true;
+            setTimeout(function () {
+                toast('Não foi possível salvar neste navegador. Faça um backup para não perder a lista.', 'Backup', exportBackup, 7000);
+            }, 500);
+        }
     }
 
     // ---------- Totais e resumo ----------
@@ -541,6 +580,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     // ---------- Folhas (modais) com suporte ao botão Voltar do Android ----------
     var openSheetId = null;
 
+    // Se a página foi recarregada com um estado de folha antigo no histórico, limpa
+    try { if (history.state && history.state.sheet) history.replaceState(null, ''); } catch (e) {}
+
     function openSheet(id) {
         if (openSheetId) {
             $(openSheetId).classList.remove('active');
@@ -574,14 +616,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
 
     // ---------- Aviso (toast) ----------
     var toastTimer = null, toastFn = null;
-    function toast(msg, actionLabel, fn) {
+    function toast(msg, actionLabel, fn, ms) {
         $('toast-msg').textContent = msg;
         var btn = $('toast-action');
         toastFn = fn || null;
         if (actionLabel) { btn.textContent = actionLabel; btn.hidden = false; } else { btn.hidden = true; }
         $('toast').classList.add('show');
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(hideToast, actionLabel ? 5000 : 2500);
+        toastTimer = setTimeout(hideToast, ms || (actionLabel ? 5000 : 2500));
     }
     function hideToast() { $('toast').classList.remove('show'); clearTimeout(toastTimer); }
     $('toast-action').addEventListener('click', function () {
@@ -708,6 +750,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
     function toggleItem(id) {
         items.forEach(function (i) { if (i.id === id) i.bought = !i.bought; });
         lastAddedId = null; vibrate(10); save(); renderList();
+        // devolve o foco ao botão do item (acessibilidade / teclado)
+        var btn = document.querySelector('[data-id="' + id + '"] .check');
+        if (btn && document.activeElement === document.body) { try { btn.focus({ preventScroll: true }); } catch (e) {} }
     }
     function removeItem(id) {
         var idx = -1;
@@ -776,7 +821,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
         if (cb) cb();
     });
 
-    $('btn-menu').addEventListener('click', function () { openSheet('sheet-menu'); });
+    function updateBackupInfo() {
+        var ts = Number(store.get(KEYS.backup)) || 0;
+        $('backup-info').textContent = ts
+            ? 'Último backup: ' + fmtDate(ts) + '. Seus dados ficam só neste aparelho.'
+            : 'Nenhum backup feito ainda. Seus dados ficam só neste aparelho.';
+    }
+    $('btn-menu').addEventListener('click', function () { updateBackupInfo(); openSheet('sheet-menu'); });
 
     $('m-share').addEventListener('click', function () {
         var text = listText();
@@ -830,6 +881,71 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
             items = []; lastAddedId = null;
             save(); renderList(); toast('Lista limpa');
         });
+    });
+
+    // ---------- Backup: exportar / importar ----------
+    function exportBackup() {
+        var d = new Date();
+        var name = 'lista-compras-' + d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + '.json';
+        var json = JSON.stringify({
+            app: 'lista-compras-pro', version: 1, exportedAt: d.toISOString(),
+            budget: budget, items: items
+        }, null, 2);
+
+        var done = function () { store.set(KEYS.backup, String(Date.now())); toast('Backup gerado'); };
+        var download = function () {
+            try {
+                var blob = new Blob([json], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = name;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+                done();
+            } catch (e) { toast('Não foi possível gerar o backup'); }
+        };
+
+        closeSheet();
+        try {
+            var file = new File([json], name, { type: 'application/json' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                navigator.share({ files: [file], title: 'Backup da Lista de Compras' }).then(done, function (err) {
+                    if (!err || err.name !== 'AbortError') download();
+                });
+                return;
+            }
+        } catch (e) {}
+        download();
+    }
+    $('m-export').addEventListener('click', exportBackup);
+
+    $('m-import').addEventListener('click', function () {
+        closeSheet();
+        $('import-file').value = '';
+        $('import-file').click();
+    });
+    $('import-file').addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onerror = function () { toast('Não foi possível ler o arquivo'); };
+        reader.onload = function () {
+            var data;
+            try { data = JSON.parse(String(reader.result)); } catch (e) { toast('Arquivo inválido'); return; }
+            var rawItems = Array.isArray(data) ? data : (data && data.items);
+            if (!Array.isArray(rawItems)) { toast('Arquivo inválido: não é um backup da lista'); return; }
+            var newItems = sanitizeItems(rawItems);
+            var newBudget = (!Array.isArray(data) && Number(data.budget) > 0) ? round2(Number(data.budget)) : 0;
+            var msg = 'O arquivo tem ' + newItems.length + (newItems.length === 1 ? ' item' : ' itens') +
+                (newBudget > 0 ? ' e orçamento de ' + money(newBudget) : '') + '. ' +
+                (items.length ? 'A lista atual (' + items.length + (items.length === 1 ? ' item' : ' itens') + ') será substituída.' : 'Deseja restaurar?');
+            askConfirm('Restaurar backup', msg, 'Restaurar', function () {
+                items = newItems; budget = newBudget; lastAddedId = null; lastRemoved = null;
+                budgetInput.value = budget > 0 ? toInput(budget.toFixed(2)) : '';
+                save(); renderList(); toast('Backup restaurado');
+            });
+        };
+        reader.readAsText(f);
     });
 
     // ---------- Cabeçalho compacto ao rolar ----------

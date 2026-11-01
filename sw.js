@@ -1,7 +1,12 @@
-// Service worker simples: deixa o app funcionar offline quando hospedado em um site (PWA).
+// Service worker: deixa o app funcionar offline quando hospedado em um site (PWA).
 // Dentro do APK (Capacitor) ele não é usado, pois os arquivos já ficam embutidos no aplicativo.
-// Ao publicar uma nova versão do app, troque o número em CACHE (ex.: v2) para forçar a atualização.
-const CACHE = 'lista-compras-v1';
+//
+// Estratégia:
+//  - index.html, manifest e navegação: "rede primeiro" (sempre pega a versão nova quando há internet;
+//    se estiver offline, usa a cópia salva). Assim, atualizações chegam sem precisar trocar a versão do cache.
+//  - ícones e demais arquivos: "cache primeiro" (rápido e não mudam com frequência).
+// Se mudar os ícones, troque o número em CACHE (ex.: v3) para forçar a atualização deles.
+const CACHE = 'lista-compras-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -23,9 +28,37 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+function saveCopy(request, response) {
+  if (response && response.ok && response.type === 'basic') {
+    const copy = response.clone();
+    caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+  }
+  return response;
+}
+
+function networkFirst(request) {
+  return fetch(request)
+    .then((res) => saveCopy(request, res))
+    .catch(() => caches.match(request).then((hit) => hit || caches.match('./index.html')));
+}
+
+function cacheFirst(request) {
+  return caches.match(request).then((hit) => {
+    if (hit) return hit;
+    return fetch(request).then((res) => saveCopy(request, res));
+  });
+}
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).catch(() => caches.match('./index.html')))
-  );
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  const isShell = req.mode === 'navigate' ||
+    url.pathname.endsWith('/index.html') ||
+    url.pathname.endsWith('/manifest.json') ||
+    url.pathname.endsWith('/');
+
+  e.respondWith(isShell ? networkFirst(req) : cacheFirst(req));
 });
